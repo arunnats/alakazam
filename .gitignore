@@ -1,0 +1,104 @@
+HELP.md
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+# ============================
+# Rust
+# ============================
+/target/
+/**/*.rs.bk
+Cargo.lock # if publishing libraries, keep this
+*.rs.bk
+*.dSYM/
+*.swp
+*.bak
+*.tmp
+*.log
+
+# wasm-pack artifacts
+/pkg/
+/node_modules/pkg/
+
+# ============================
+# Node.js (Next.js, NestJS, etc.)
+# ============================
+node_modules/
+dist/
+.next/
+out/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.env
+.env.local
+.env.*.local
+
+# ============================
+# Spring Boot (Java)
+# ============================
+/target/
+/bin/
+/build/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+hs_err_pid*
+.recommenders/
+.settings/
+.project
+.classpath
+.idea/
+*.iml
+*.iws
+
+# ============================
+# OS & Editor Files
+# ============================
+.DS_Store
+Thumbs.db
+*.sw?
+*.swo
+*.swn
+*.bak
+*.tmp
+*.log
+.vscode/
+*.orig
