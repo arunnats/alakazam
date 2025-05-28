@@ -102,3 +102,9 @@ Thumbs.db
 *.log
 .vscode/
 *.orig
+
+*.wav
+
+target/
+**/*.rs.bk
+Cargo.lock
