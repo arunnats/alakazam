@@ -1,5 +1,5 @@
 use redis::{Client, Commands, RedisResult};
-use rustfft::{num_complex::Complex, FftPlanner};
+use rustfft::{FftPlanner, num_complex::Complex};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -14,12 +14,60 @@ pub struct AudioFingerprinter {
     redis_client: Client,
 }
 
+#[derive(Clone, Debug)]
+pub struct FrequencyBands {
+    pub bass: (usize, usize),     // 20-250 Hz
+    pub low_mid: (usize, usize),  // 250-500 Hz
+    pub mid: (usize, usize),      // 500-2000 Hz
+    pub high_mid: (usize, usize), // 2000-4000 Hz
+    pub treble: (usize, usize),   // 4000-8000 Hz
+    pub presence: (usize, usize), // 8000+ Hz
+}
+
 impl AudioFingerprinter {
     pub fn new(redis_url: &str) -> RedisResult<Self> {
         let client = Client::open(redis_url)?;
         Ok(AudioFingerprinter {
             redis_client: client,
         })
+    }
+
+    // create frequency bands to map it better
+    fn create_frequency_bands(&self, fft_size: usize, sample_rate: u32) -> FrequencyBands {
+        let freq_resolution = sample_rate as f32 / fft_size as f32;
+
+        // Modified bands to focus more on human voice range (85-255 Hz for male, 165-255 Hz for female)
+        // and add more tolerance in the mid-range where most singing occurs
+        FrequencyBands {
+            bass: (
+                self.freq_to_bin(20.0, freq_resolution),
+                self.freq_to_bin(300.0, freq_resolution), // Extended bass range
+            ),
+            low_mid: (
+                self.freq_to_bin(300.0, freq_resolution),
+                self.freq_to_bin(800.0, freq_resolution), // Extended low-mid for voice fundamentals
+            ),
+            mid: (
+                self.freq_to_bin(800.0, freq_resolution),
+                self.freq_to_bin(3000.0, freq_resolution), // Extended mid-range for voice harmonics
+            ),
+            high_mid: (
+                self.freq_to_bin(3000.0, freq_resolution),
+                self.freq_to_bin(5000.0, freq_resolution), // Reduced high-mid range
+            ),
+            treble: (
+                self.freq_to_bin(5000.0, freq_resolution),
+                self.freq_to_bin(8000.0, freq_resolution),
+            ),
+            presence: (
+                self.freq_to_bin(8000.0, freq_resolution),
+                self.freq_to_bin(20000.0, freq_resolution),
+            ),
+        }
+    }
+
+    fn freq_to_bin(&self, freq: f32, freq_resolution: f32) -> usize {
+        (freq / freq_resolution).round() as usize
     }
 
     // Generate fingerprint hashes from audio data
@@ -38,7 +86,7 @@ impl AudioFingerprinter {
 
             if window.len() == window_size {
                 let spectrum = self.compute_spectrum(window, &*fft);
-                let peaks = self.extract_peaks(&spectrum);
+                let peaks = self.extract_peaks(&spectrum, sample_rate);
                 let hashes = self.peaks_to_hashes(&peaks);
                 fingerprints.extend(hashes);
             }
@@ -68,40 +116,114 @@ impl AudioFingerprinter {
         0.54 - 0.46 * (2.0 * std::f32::consts::PI / n as f32).cos()
     }
 
-    fn extract_peaks(&self, spectrum: &[f32]) -> Vec<(usize, f32)> {
+    fn extract_peaks(&self, spectrum: &[f32], sample_rate: u32) -> Vec<(usize, f32, String)> {
+        let bands = self.create_frequency_bands(spectrum.len() * 2, sample_rate);
         let mut peaks = Vec::new();
-        let threshold = spectrum.iter().sum::<f32>() / spectrum.len() as f32 * 1.5;
 
-        // Find local maxima above threshold
-        for i in 1..spectrum.len() - 1 {
-            if spectrum[i] > threshold
-                && spectrum[i] > spectrum[i - 1]
-                && spectrum[i] > spectrum[i + 1]
-            {
-                peaks.push((i, spectrum[i]));
+        // Extract peaks from each frequency band with different thresholds
+        let band_configs = [
+            ("bass", bands.bass, 3, 1.1),       // More peaks, lower threshold
+            ("low_mid", bands.low_mid, 4, 1.0), // Most important for voice
+            ("mid", bands.mid, 4, 1.0),         // Most important for voice
+            ("high_mid", bands.high_mid, 2, 1.2),
+            ("treble", bands.treble, 1, 1.3),
+            ("presence", bands.presence, 1, 1.4),
+        ];
+
+        for (band_name, (start, end), max_peaks, threshold_multiplier) in band_configs {
+            let band_spectrum = &spectrum[start..end.min(spectrum.len())];
+            let band_threshold = band_spectrum.iter().sum::<f32>() / band_spectrum.len() as f32
+                * threshold_multiplier;
+
+            let mut band_peaks = Vec::new();
+
+            // Use a wider window for peak detection to be more tolerant
+            let window_size = 3;
+            for i in window_size..band_spectrum.len() - window_size {
+                let window = &band_spectrum[i - window_size..i + window_size + 1];
+                let center_value = band_spectrum[i];
+
+                // Check if center is a peak within the window
+                if center_value > band_threshold
+                    && center_value
+                        >= *window
+                            .iter()
+                            .max_by(|a, b| a.partial_cmp(b).unwrap())
+                            .unwrap()
+                {
+                    band_peaks.push((start + i, center_value, band_name.to_string()));
+                }
             }
+
+            // Sort by magnitude and take top peaks
+            band_peaks.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+            band_peaks.truncate(max_peaks);
+            peaks.extend(band_peaks);
         }
 
-        // Sort by magnitude and take top peaks
-        peaks.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        peaks.truncate(5); // Take top 5 peaks per window
         peaks
     }
 
-    fn peaks_to_hashes(&self, peaks: &[(usize, f32)]) -> Vec<u64> {
+    fn peaks_to_hashes(&self, peaks: &[(usize, f32, String)]) -> Vec<u64> {
         let mut hashes = Vec::new();
+        let mut band_groups: std::collections::HashMap<String, Vec<(usize, f32)>> =
+            std::collections::HashMap::new();
 
-        // Create combinatorial hashes from peak pairs
-        for (i, &(freq1, _)) in peaks.iter().enumerate() {
-            for &(freq2, _) in peaks.iter().skip(i + 1) {
-                // Create hash from frequency pair
-                // Simple hash: combine frequencies with bit shifting
-                let hash = ((freq1 as u64) << 16) | (freq2 as u64);
-                hashes.push(hash);
+        // Group peaks by frequency band
+        for (freq, amp, band) in peaks {
+            band_groups
+                .entry(band.clone())
+                .or_insert_with(Vec::new)
+                .push((*freq, *amp));
+        }
+
+        // Generate more specific hashes
+        for (band_name, band_peaks) in &band_groups {
+            // Sort peaks by frequency for more consistent hashing
+            let mut sorted_peaks = band_peaks.clone();
+            sorted_peaks.sort_by_key(|&(freq, _)| freq);
+
+            // Create hashes with more specific combinations
+            for i in 0..sorted_peaks.len() {
+                for j in (i + 1)..sorted_peaks.len() {
+                    let (freq1, amp1) = sorted_peaks[i];
+                    let (freq2, amp2) = sorted_peaks[j];
+
+                    // Include amplitude information in the hash
+                    let amp_ratio = (amp1 / amp2 * 100.0) as u8;
+
+                    // Create a more specific hash that includes:
+                    // - Band information (6 bits)
+                    // - Frequency difference (16 bits)
+                    // - Amplitude ratio (8 bits)
+                    // - Frequency sum (16 bits)
+                    let band_id = self.band_name_to_id(band_name);
+                    let freq_diff = (freq2 as i32 - freq1 as i32).abs() as u16;
+                    let freq_sum = (freq1 + freq2) as u16;
+
+                    let hash = ((band_id as u64) << 58)
+                        | ((freq_diff as u64) << 42)
+                        | ((amp_ratio as u64) << 34)
+                        | ((freq_sum as u64) << 18);
+
+                    hashes.push(hash);
+                }
             }
         }
 
         hashes
+    }
+
+    fn band_name_to_id(&self, band_name: &str) -> u8 {
+        match band_name {
+            "bass" => 1,
+            "low_mid" => 2,
+            "mid" => 3,
+            "high_mid" => 4,
+            "treble" => 5,
+            "presence" => 6,
+            _ => 0,
+        }
     }
 
     // Store song fingerprint in Redis
@@ -144,27 +266,53 @@ impl AudioFingerprinter {
         let mut conn = self.redis_client.get_connection()?;
         let query_fingerprints = self.generate_fingerprint(audio_clip, sample_rate);
 
-        let mut song_matches: HashMap<u64, usize> = HashMap::new();
+        let mut song_matches: HashMap<u64, (usize, Vec<u64>)> = HashMap::new();
 
-        // Count matches for each song
+        // Count matches for each song with hash tracking
         for hash in &query_fingerprints {
             let hash_key = format!("hash:{}", hash);
             let song_ids: Vec<u64> = conn.smembers(&hash_key)?;
 
             for song_id in song_ids {
-                *song_matches.entry(song_id).or_insert(0) += 1;
+                let entry = song_matches.entry(song_id).or_insert((0, Vec::new()));
+                entry.0 += 1;
+                entry.1.push(*hash);
             }
         }
 
-        // Convert to results with confidence scores
+        // Convert to results with improved confidence scores
         let mut results = Vec::new();
-        for (song_id, match_count) in song_matches {
+        for (song_id, (match_count, matched_hashes)) in song_matches {
             let song_key = format!("song:{}", song_id);
             if let Ok(song_json) = conn.get::<String, String>(song_key) {
                 if let Ok(song_info) = serde_json::from_str::<SongInfo>(&song_json) {
-                    // Simple confidence score based on match count
-                    let confidence = match_count as f32 / query_fingerprints.len() as f32;
-                    results.push((song_info, confidence));
+                    // Calculate a more sophisticated confidence score
+                    let total_hashes = query_fingerprints.len() as f32;
+                    let unique_matches = matched_hashes.len() as f32;
+
+                    // Base confidence on unique matches
+                    let base_confidence = unique_matches / total_hashes;
+
+                    // Apply a penalty for low match counts
+                    let match_ratio = match_count as f32 / unique_matches;
+                    let match_penalty = if match_ratio > 2.0 {
+                        0.8 // Heavy penalty for too many duplicate matches
+                    } else if match_ratio > 1.5 {
+                        0.9 // Medium penalty
+                    } else {
+                        1.0 // No penalty
+                    };
+
+                    // Apply a minimum threshold
+                    let confidence = if base_confidence < 0.1 {
+                        0.0 // Too few matches
+                    } else {
+                        base_confidence * match_penalty
+                    };
+
+                    if confidence > 0.0 {
+                        results.push((song_info, confidence));
+                    }
                 }
             }
         }
@@ -239,21 +387,135 @@ pub fn load_audio_from_wav(file_path: &str) -> Result<(Vec<f32>, u32), Box<dyn s
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let fingerprinter = AudioFingerprinter::new("redis://127.0.0.1/")?;
 
-    // // Load and store the full song
-    // println!("Loading song.wav...");
-    // let (song_audio, song_sample_rate) = load_audio_from_wav("505.wav")?;
+    // Load and store the full song
+    println!("Loading song.wav...");
+    let (song_audio, song_sample_rate) = load_audio_from_wav("505.wav")?;
 
-    // let song_info = SongInfo {
-    //     name: "505".to_string(),
-    //     singer: "Arctic Monkeys".to_string(),
-    // };
+    let song_info = SongInfo {
+        name: "505".to_string(),
+        singer: "Arctic Monkeys".to_string(),
+    };
 
-    // println!("Storing song fingerprint...");
-    // fingerprinter.store_song(&song_info, &song_audio, song_sample_rate)?;
+    println!("Storing song fingerprint...");
+    fingerprinter.store_song(&song_info, &song_audio, song_sample_rate)?;
+
+    println!("Loading song.wav...");
+    let (song_audio, song_sample_rate) = load_audio_from_wav("song2.wav")?;
+
+    let song_info = SongInfo {
+        name: "LINKE HIM".to_string(),
+        singer: "TYLER".to_string(),
+    };
+
+    println!("Storing song fingerprint...");
+    fingerprinter.store_song(&song_info, &song_audio, song_sample_rate)?;
+
+    println!("Loading song.wav...");
+    let (song_audio, song_sample_rate) = load_audio_from_wav("input.wav")?;
+
+    let song_info = SongInfo {
+        name: "we fell in october".to_string(),
+        singer: "girl in red".to_string(),
+    };
+
+    println!("Storing song fingerprint...");
+    fingerprinter.store_song(&song_info, &song_audio, song_sample_rate)?;
 
     // Load and search with test clip
     println!("Loading test.wav...");
     let (test_audio, test_sample_rate) = load_audio_from_wav("record_out2.wav")?;
+
+    println!("Searching for matches...");
+    let results = fingerprinter.search_song(&test_audio, test_sample_rate)?;
+
+    // Display results
+    if results.is_empty() {
+        println!("No matches found!");
+    } else {
+        println!("Found {} matches:", results.len());
+        for (i, (song, confidence)) in results.iter().enumerate().take(5) {
+            println!(
+                "  {}. {} by {} (confidence: {:.3})",
+                i + 1,
+                song.name,
+                song.singer,
+                confidence
+            );
+        }
+    }
+
+    // Load and search with test clip
+    println!("Loading test.wav...");
+    let (test_audio, test_sample_rate) = load_audio_from_wav("record_out1.wav")?;
+
+    println!("Searching for matches...");
+    let results = fingerprinter.search_song(&test_audio, test_sample_rate)?;
+
+    // Display results
+    if results.is_empty() {
+        println!("No matches found!");
+    } else {
+        println!("Found {} matches:", results.len());
+        for (i, (song, confidence)) in results.iter().enumerate().take(5) {
+            println!(
+                "  {}. {} by {} (confidence: {:.3})",
+                i + 1,
+                song.name,
+                song.singer,
+                confidence
+            );
+        }
+    }
+
+    // Load and search with test clip
+    println!("Loading test.wav...");
+    let (test_audio, test_sample_rate) = load_audio_from_wav("in1.wav")?;
+
+    println!("Searching for matches...");
+    let results = fingerprinter.search_song(&test_audio, test_sample_rate)?;
+
+    // Display results
+    if results.is_empty() {
+        println!("No matches found!");
+    } else {
+        println!("Found {} matches:", results.len());
+        for (i, (song, confidence)) in results.iter().enumerate().take(5) {
+            println!(
+                "  {}. {} by {} (confidence: {:.3})",
+                i + 1,
+                song.name,
+                song.singer,
+                confidence
+            );
+        }
+    }
+
+    // Load and search with test clip
+    println!("Loading test.wav...");
+    let (test_audio, test_sample_rate) = load_audio_from_wav("in2.wav")?;
+
+    println!("Searching for matches...");
+    let results = fingerprinter.search_song(&test_audio, test_sample_rate)?;
+
+    // Display results
+    if results.is_empty() {
+        println!("No matches found!");
+    } else {
+        println!("Found {} matches:", results.len());
+        for (i, (song, confidence)) in results.iter().enumerate().take(5) {
+            println!(
+                "  {}. {} by {} (confidence: {:.3})",
+                i + 1,
+                song.name,
+                song.singer,
+                confidence
+            );
+        }
+    }
+
+    // Load and search with test clip
+    println!("Loading test.wav...");
+    let (test_audio, test_sample_rate) = load_audio_from_wav("in4.wav")?;
 
     println!("Searching for matches...");
     let results = fingerprinter.search_song(&test_audio, test_sample_rate)?;
