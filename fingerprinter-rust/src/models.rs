@@ -21,3 +21,22 @@ pub struct FrequencyBands {
     pub treble: (usize, usize), // 5000-8000 Hz: High frequencies, cymbals, etc.
     pub presence: (usize, usize), // 8000+ Hz: Very high frequencies, air and presence
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct SongFingerprint {
+    pub hashes: Vec<u64>,
+    pub metadata: SongMetadata,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct QueryFingerprint {
+    pub hashes: Vec<u64>,
+    pub duration: f32,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct SongMetadata {
+    pub duration: f32,
+    pub sample_rate: u32,
+    pub hash_count: usize,
+}

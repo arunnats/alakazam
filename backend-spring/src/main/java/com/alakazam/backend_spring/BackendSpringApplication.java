@@ -1,13 +1,13 @@
-package com.example.fingerprint;
+package com.alakazam.backend_spring;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class FingerprintBackendApplication {
+public class BackendSpringApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(FingerprintBackendApplication.class, args);
+		SpringApplication.run(BackendSpringApplication.class, args);
 	}
 
 }
