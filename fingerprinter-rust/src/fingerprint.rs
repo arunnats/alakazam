@@ -1,24 +1,18 @@
 use crate::models::{FrequencyBands, SongInfo};
-use rustfft::{FftPlanner, num_complex::Complex};
+use rustfft::{num_complex::Complex, FftPlanner};
 
 /// Main fingerprinting engine that handles audio fingerprint generation and matching
 /// This struct implements the core audio fingerprinting algorithm which:
 /// 1. Converts audio to frequency domain using FFT
 /// 2. Extracts significant peaks in different frequency bands
 /// 3. Creates robust hashes from peak combinations
-/// 4. Stores and searches fingerprints using Redis
-pub struct AudioFingerprinter {
-    storage: crate::storage::RedisStorage,
-}
+pub struct AudioFingerprinter;
 
 impl AudioFingerprinter {
     /// Creates a new AudioFingerprinter instance
-    ///
-    /// # Arguments
-    /// * `redis_url` - URL of the Redis server for storage
-    pub fn new(redis_url: &str) -> redis::RedisResult<Self> {
-        let storage = crate::storage::RedisStorage::new(redis_url)?;
-        Ok(AudioFingerprinter { storage })
+
+    pub fn new() -> Self {
+        AudioFingerprinter
     }
 
     /// Creates frequency bands for the fingerprinting algorithm
@@ -249,26 +243,5 @@ impl AudioFingerprinter {
             "presence" => 6,
             _ => 0,
         }
-    }
-
-    /// Stores a song's fingerprints in Redis
-    pub fn store_song(
-        &self,
-        song_info: &SongInfo,
-        audio_data: &[f32],
-        sample_rate: u32,
-    ) -> redis::RedisResult<()> {
-        let fingerprints = self.generate_fingerprint(audio_data, sample_rate);
-        self.storage.store_song(song_info, &fingerprints)
-    }
-
-    /// Searches for a song matching the given audio clip
-    pub fn search_song(
-        &self,
-        audio_clip: &[f32],
-        sample_rate: u32,
-    ) -> redis::RedisResult<Vec<(SongInfo, f32)>> {
-        let fingerprints = self.generate_fingerprint(audio_clip, sample_rate);
-        self.storage.search_song(&fingerprints)
     }
 }

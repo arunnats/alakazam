@@ -55,8 +55,30 @@ public class Fingerprinter {
     // Native method declarations
     public static native String generateSongFingerprint(byte[] audioData, int sampleRate);
     public static native String generateQueryFingerprint(byte[] audioData, int sampleRate);
-    
-    // Wrapper methods that return Java objects
+    public static native String testFunc();
+    public static native String loadAudioFromWav(String filePath);
+
+    public AudioData loadAudioFromWavFile(String filePath) {
+        try {
+            String jsonResult = loadAudioFromWav(filePath);
+            if (jsonResult == null) {
+                throw new RuntimeException("Native function returned null");
+            }
+            return objectMapper.readValue(jsonResult, AudioData.class);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load audio from WAV file", e);
+        }
+    }
+
+    public String testConnection() {
+        try {
+            String result = testFunc();
+            return result != null ? result : "null returned";
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
+    }
+
     public SongFingerprint generateSongFingerprintObj(float[] audioData, int sampleRate) {
         try {
             byte[] audioBytes = floatArrayToByteArray(audioData);
@@ -156,6 +178,36 @@ public class Fingerprinter {
         public int getHashCount() { return hashCount; }
         public void setHashCount(int hashCount) { this.hashCount = hashCount; }
     }
+
+    public static class AudioData {
+        @JsonProperty("audio_data")
+        public float[] audioData;
+        
+        @JsonProperty("sample_rate")
+        public int sampleRate;
+        
+        @JsonProperty("duration")
+        public float duration;
+        
+        @JsonProperty("sample_count")
+        public int sampleCount;
+        
+        // Default constructor
+        public AudioData() {}
+        
+        // Getters and setters
+        public float[] getAudioData() { return audioData; }
+        public void setAudioData(float[] audioData) { this.audioData = audioData; }
+        
+        public int getSampleRate() { return sampleRate; }
+        public void setSampleRate(int sampleRate) { this.sampleRate = sampleRate; }
+        
+        public float getDuration() { return duration; }
+        public void setDuration(float duration) { this.duration = duration; }
+        
+        public int getSampleCount() { return sampleCount; }
+        public void setSampleCount(int sampleCount) { this.sampleCount = sampleCount; }
+    }    
     
     // Utility method to test if the library is loaded correctly
     public boolean isLibraryLoaded() {

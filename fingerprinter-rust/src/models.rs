@@ -22,21 +22,29 @@ pub struct FrequencyBands {
     pub presence: (usize, usize), // 8000+ Hz: Very high frequencies, air and presence
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SongFingerprint {
     pub hashes: Vec<u64>,
     pub metadata: SongMetadata,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct QueryFingerprint {
     pub hashes: Vec<u64>,
     pub duration: f32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SongMetadata {
     pub duration: f32,
     pub sample_rate: u32,
     pub hash_count: usize,
+}
+
+#[derive(serde::Serialize)]
+pub struct AudioLoadResult {
+    pub audio_data: Vec<f32>,
+    pub sample_rate: u32,
+    pub duration: f32,
+    pub sample_count: usize,
 }
