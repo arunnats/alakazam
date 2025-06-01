@@ -1,6 +1,8 @@
 package com.alakazam.backend_spring;
 
 import com.alakazam.backend_spring.service.AudioFingerprintService;
+import com.alakazam.backend_spring.data.Search;
+import com.alakazam.backend_spring.data.Search.MatchResultDetailed;
 import com.alakazam.backend_spring.fingerprinter.Fingerprinter;
 import com.alakazam.backend_spring.model.Song;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +20,9 @@ public class ApiController {
     @Autowired
     private Fingerprinter fingerprinter;
 
+    @Autowired
+    private Search search;
+
     @GetMapping("/")
     public String index() {
         return "Greetings from Spring Boot!";
@@ -26,46 +31,6 @@ public class ApiController {
     @GetMapping("/haiii")
     public String hallloo() {
         return "haiii :3";
-    }
-    
-    @GetMapping("/test-store")
-    public String testStore() {
-        try {
-            // Generate some dummy audio data for testing
-            float[] audioData = new float[44100]; // 1 second of silence
-            for (int i = 0; i < audioData.length; i++) {
-                audioData[i] = (float) Math.sin(2 * Math.PI * 440 * i / 44100); // 440Hz tone
-            }
-            
-            Song song = audioService.storeSong("Test Song", "Test Artist", "Rock", audioData, 44100);
-            return "Stored song with ID: " + song.getId();
-        } catch (Exception e) {
-            System.out.println(e);
-            return "Error: " + e.getMessage();
-        }
-    }
-    
-    @GetMapping("/test-search")
-    public String testSearch() {
-        try {
-            // Generate same dummy audio for search
-            float[] audioData = new float[44100];
-            for (int i = 0; i < audioData.length; i++) {
-                audioData[i] = (float) Math.sin(2 * Math.PI * 440 * i / 44100);
-            }
-            
-            List<AudioFingerprintService.MatchResult> results = audioService.searchSong(audioData, 44100);
-            
-            if (results.isEmpty()) {
-                return "No matches found";
-            } else {
-                AudioFingerprintService.MatchResult best = results.get(0);
-                return "Found match: " + best.getSong().getTitle() + " by " + best.getSong().getArtist() + 
-                       " (confidence: " + best.getConfidence() + ")";
-            }
-        } catch (Exception e) {
-            return "Error: " + e.getMessage();
-        }
     }
     
     @GetMapping("/songs")
@@ -86,9 +51,9 @@ public class ApiController {
     public String testStoreWav() {
         try {
             // Use a hardcoded path to your test WAV file
-            String wavPath = "src/main/resources/505.wav";
+            String wavPath = "src/main/resources/song2.wav";
             
-            Song song = audioService.storeSongFromWav("Test WAV Song", "Test Artist", "Rock", wavPath);
+            Song song = audioService.storeSongFromWav("Like him", "taylr", "genre", wavPath);
             return "Stored WAV song with ID: " + song.getId();
         } catch (Exception e) {
             System.out.println(e);
@@ -96,18 +61,46 @@ public class ApiController {
         }
     }
 
-    @GetMapping("/test-load-wav")
-    public String testLoadWav() {
+    @GetMapping("/test-search-wav")
+    public String testSearchWav() {
         try {
-            String wavPath = "src/main/resources/505.wav";
+            // Load the entire WAV file as the search query (no splitting)
+            String wavPath = "src/main/resources/in2.wav";
             Fingerprinter.AudioData audioData = fingerprinter.loadAudioFromWavFile(wavPath);
             
-            return String.format("Loaded WAV: %d samples, %.2f seconds, %d Hz", 
-                audioData.getSampleCount(), 
-                audioData.getDuration(), 
-                audioData.getSampleRate());
+            System.out.println("teastaa\n");
+
+            // Generate query fingerprint from the ENTIRE audio file
+            Fingerprinter.QueryFingerprint queryFingerprint = 
+                fingerprinter.generateQueryFingerprintObj(audioData.getAudioData(), audioData.getSampleRate());
+            
+            System.out.println("teastbb\n");
+
+            // Search using the same logic as Rust implementation
+            List<MatchResultDetailed> results = search.searchRedis(queryFingerprint.getHashes());
+
+            System.out.println(results);
+            
+            if (results.isEmpty()) {
+                System.out.println("nahi");
+                return "No matches found";
+            } else {
+                StringBuilder response = new StringBuilder();
+                response.append("Found ").append(results.size()).append(" matches:\n");
+                
+                for (int i = 0; i < Math.min(3, results.size()); i++) {
+                    MatchResultDetailed result = results.get(i);
+                    response.append(String.format("%d. %s by %s (confidence: %.3f)\n", 
+                        i + 1,
+                        result.getSong().getTitle(), 
+                        result.getSong().getArtist(),
+                        result.getConfidence()));
+                }
+                System.out.println(response);
+                return response.toString();
+            }
         } catch (Exception e) {
-            return "Error loading WAV: " + e.getMessage();
+            return "Error: " + e.getMessage();
         }
     }
 }

@@ -6,6 +6,8 @@ import org.springframework.stereotype.Component;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Component
 public class Fingerprinter {
@@ -64,6 +66,8 @@ public class Fingerprinter {
             if (jsonResult == null) {
                 throw new RuntimeException("Native function returned null");
             }
+            System.out.println("My jsonResult");
+            // System.out.println(jsonResult);
             return objectMapper.readValue(jsonResult, AudioData.class);
         } catch (Exception e) {
             throw new RuntimeException("Failed to load audio from WAV file", e);
@@ -119,42 +123,28 @@ public class Fingerprinter {
     }
     
     // Data classes matching your Rust structs
+    @Data
+    @NoArgsConstructor
     public static class SongFingerprint {
         @JsonProperty("hashes")
         public long[] hashes;
         
         @JsonProperty("metadata")
         public SongMetadata metadata;
-        
-        // Default constructor for Jackson
-        public SongFingerprint() {}
-        
-        // Getters and setters
-        public long[] getHashes() { return hashes; }
-        public void setHashes(long[] hashes) { this.hashes = hashes; }
-        
-        public SongMetadata getMetadata() { return metadata; }
-        public void setMetadata(SongMetadata metadata) { this.metadata = metadata; }
     }
     
+    @Data
+    @NoArgsConstructor
     public static class QueryFingerprint {
         @JsonProperty("hashes")
         public long[] hashes;
         
         @JsonProperty("duration")
         public float duration;
-        
-        // Default constructor for Jackson
-        public QueryFingerprint() {}
-        
-        // Getters and setters
-        public long[] getHashes() { return hashes; }
-        public void setHashes(long[] hashes) { this.hashes = hashes; }
-        
-        public float getDuration() { return duration; }
-        public void setDuration(float duration) { this.duration = duration; }
     }
     
+    @Data
+    @NoArgsConstructor
     public static class SongMetadata {
         @JsonProperty("duration")
         public float duration;
@@ -164,21 +154,10 @@ public class Fingerprinter {
         
         @JsonProperty("hash_count")
         public int hashCount;
-        
-        // Default constructor for Jackson
-        public SongMetadata() {}
-        
-        // Getters and setters
-        public float getDuration() { return duration; }
-        public void setDuration(float duration) { this.duration = duration; }
-        
-        public int getSampleRate() { return sampleRate; }
-        public void setSampleRate(int sampleRate) { this.sampleRate = sampleRate; }
-        
-        public int getHashCount() { return hashCount; }
-        public void setHashCount(int hashCount) { this.hashCount = hashCount; }
     }
 
+    @Data
+    @NoArgsConstructor
     public static class AudioData {
         @JsonProperty("audio_data")
         public float[] audioData;
@@ -191,22 +170,6 @@ public class Fingerprinter {
         
         @JsonProperty("sample_count")
         public int sampleCount;
-        
-        // Default constructor
-        public AudioData() {}
-        
-        // Getters and setters
-        public float[] getAudioData() { return audioData; }
-        public void setAudioData(float[] audioData) { this.audioData = audioData; }
-        
-        public int getSampleRate() { return sampleRate; }
-        public void setSampleRate(int sampleRate) { this.sampleRate = sampleRate; }
-        
-        public float getDuration() { return duration; }
-        public void setDuration(float duration) { this.duration = duration; }
-        
-        public int getSampleCount() { return sampleCount; }
-        public void setSampleCount(int sampleCount) { this.sampleCount = sampleCount; }
     }    
     
     // Utility method to test if the library is loaded correctly

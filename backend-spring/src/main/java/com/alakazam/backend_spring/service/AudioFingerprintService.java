@@ -4,6 +4,9 @@ import com.alakazam.backend_spring.fingerprinter.Fingerprinter;
 import com.alakazam.backend_spring.model.Song;
 
 import lombok.Getter;
+import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -23,11 +26,11 @@ public class AudioFingerprintService {
     public Song storeSongFromWav(String title, String artist, String genre, String wavFilePath) {
         // Load audio using Rust
         Fingerprinter.AudioData audioData = fingerprinter.loadAudioFromWavFile(wavFilePath);
-        
+        System.out.println("Audio Data Gotten");
         // Generate fingerprint
         Fingerprinter.SongFingerprint fingerprint = 
             fingerprinter.generateSongFingerprintObj(audioData.getAudioData(), audioData.getSampleRate());
-        
+        System.out.println("Song Object Generated");
         // Store song (rest of your existing logic)
         Long songId = redisTemplate.opsForValue().increment("song_counter");
         
@@ -40,7 +43,7 @@ public class AudioFingerprintService {
         // Store in Redis
         String songKey = "song:" + songId;
         redisTemplate.opsForValue().set(songKey, song);
-        
+        System.out.println("Saved In Redis");
         for (long hash : fingerprint.getHashes()) {
             String hashKey = "hash:" + hash;
             redisTemplate.opsForSet().add(hashKey, songId);
@@ -191,18 +194,12 @@ public class AudioFingerprintService {
             .collect(Collectors.toList());
     }
     
-    @Getter
+    @Data
+    @AllArgsConstructor
     public static class MatchResult {
         private Song song;
         private float confidence;
         private int matchCount;
         private int totalQueryHashes;
-        
-        public MatchResult(Song song, float confidence, int matchCount, int totalQueryHashes) {
-            this.song = song;
-            this.confidence = confidence;
-            this.matchCount = matchCount;
-            this.totalQueryHashes = totalQueryHashes;
-        }
     }
 }
