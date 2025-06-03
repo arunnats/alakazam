@@ -48,3 +48,9 @@ pub struct AudioLoadResult {
     pub duration: f32,
     pub sample_count: usize,
 }
+
+#[derive(Serialize)]
+pub struct SerializableHash {
+    pub(crate) hash: String,
+    offset: u32,
+}

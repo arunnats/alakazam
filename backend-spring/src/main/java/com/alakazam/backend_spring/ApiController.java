@@ -7,9 +7,12 @@ import com.alakazam.backend_spring.fingerprinter.Fingerprinter;
 import com.alakazam.backend_spring.model.Song;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 public class ApiController {
@@ -68,14 +71,10 @@ public class ApiController {
             String wavPath = "src/main/resources/in2.wav";
             Fingerprinter.AudioData audioData = fingerprinter.loadAudioFromWavFile(wavPath);
             
-            System.out.println("teastaa\n");
-
             // Generate query fingerprint from the ENTIRE audio file
             Fingerprinter.QueryFingerprint queryFingerprint = 
                 fingerprinter.generateQueryFingerprintObj(audioData.getAudioData(), audioData.getSampleRate());
             
-            System.out.println("teastbb\n");
-
             // Search using the same logic as Rust implementation
             List<MatchResultDetailed> results = search.searchRedis(queryFingerprint.getHashes());
 
@@ -102,5 +101,12 @@ public class ApiController {
         } catch (Exception e) {
             return "Error: " + e.getMessage();
         }
+    }
+
+    @PostMapping("/search")
+    public List<Search.MatchResultDetailed> search(@RequestBody Map<String, Object> body) {
+        List<String> hashes = (List<String>) body.get("hashes");
+        long[] hashArray = hashes.stream().mapToLong(Long::parseLong).toArray();
+        return search.searchRedis(hashArray);
     }
 }
