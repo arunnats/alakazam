@@ -54,3 +54,10 @@ pub struct SerializableHash {
     pub(crate) hash: String,
     offset: u32,
 }
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct AudioHashes {
+    pub hashes: Vec<String>,  
+    pub sample_rate: u32,
+    pub duration_seconds: f32,
+}

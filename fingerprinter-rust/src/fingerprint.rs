@@ -75,7 +75,7 @@ impl AudioFingerprinter {
     /// Vector of fingerprint hashes
     pub fn generate_fingerprint(&self, audio_data: &[f32], sample_rate: u32) -> Vec<u64> {
         let window_size = 1024;
-        let hop_size = window_size / 2;
+        let hop_size: usize = window_size / 2;
         let mut fingerprints = Vec::new();
 
         let mut planner = FftPlanner::new();

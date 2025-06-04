@@ -59,6 +59,7 @@ public class Fingerprinter {
     public static native String generateQueryFingerprint(byte[] audioData, int sampleRate);
     public static native String testFunc();
     public static native String loadAudioFromWav(String filePath);
+    public static native String createHashesFromWav(byte[] wavBytes);
 
     public AudioData loadAudioFromWavFile(String filePath) {
         try {

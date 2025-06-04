@@ -1,16 +1,19 @@
 package com.alakazam.backend_spring;
 
 import com.alakazam.backend_spring.service.AudioFingerprintService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.alakazam.backend_spring.data.Search;
 import com.alakazam.backend_spring.data.Search.MatchResultDetailed;
 import com.alakazam.backend_spring.fingerprinter.Fingerprinter;
 import com.alakazam.backend_spring.model.Song;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 
@@ -34,11 +37,6 @@ public class ApiController {
     @GetMapping("/haiii")
     public String hallloo() {
         return "haiii :3";
-    }
-    
-    @GetMapping("/songs")
-    public List<Song> getAllSongs() {
-        return audioService.getAllSongs(0, 10);
     }
 
     @GetMapping("/test-jni")
@@ -108,5 +106,30 @@ public class ApiController {
         List<String> hashes = (List<String>) body.get("hashes");
         long[] hashArray = hashes.stream().mapToLong(Long::parseLong).toArray();
         return search.searchRedis(hashArray);
+    }
+
+    @GetMapping("/test-hash")
+    public String testHash() {
+        try {
+            // Load WAV file from resources
+            ClassPathResource resource = new ClassPathResource("in2.wav");
+            byte[] wavBytes = Files.readAllBytes(resource.getFile().toPath());
+            
+            // Call JNI method
+            String jsonResult = Fingerprinter.createHashesFromWav(wavBytes);
+            
+            // Parse result
+            ObjectMapper mapper = new ObjectMapper();
+            Map<String, Object> result = mapper.readValue(jsonResult, Map.class);
+            
+            // Extract hashes
+            List<String> hashes = (List<String>) result.get("hashes");
+            String first300 = String.join(",", hashes).substring(0, Math.min(300, hashes.size()));
+            
+            return String.format("Hashes (%d total): %s...", hashes.size(), first300);
+            
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
     }
 }

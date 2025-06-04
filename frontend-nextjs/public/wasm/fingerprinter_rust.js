@@ -141,6 +141,20 @@ export function test_wasm() {
     }
 }
 
+/**
+ * @param {Uint8Array} wav_bytes
+ * @returns {any}
+ */
+export function create_hashes_from_wav_wasm(wav_bytes) {
+    const ptr0 = passArray8ToWasm0(wav_bytes, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.create_hashes_from_wav_wasm(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
 async function __wbg_load(module, imports) {
     if (typeof Response === 'function' && module instanceof Response) {
         if (typeof WebAssembly.instantiateStreaming === 'function') {
@@ -193,6 +207,10 @@ function __wbg_get_imports() {
             wasm.__wbindgen_free(deferred0_0, deferred0_1, 1);
         }
     };
+    imports.wbg.__wbg_new_405e22f390576ce2 = function() {
+        const ret = new Object();
+        return ret;
+    };
     imports.wbg.__wbg_new_78feb108b6472713 = function() {
         const ret = new Array();
         return ret;
@@ -203,6 +221,9 @@ function __wbg_get_imports() {
     };
     imports.wbg.__wbg_set_37837023f3d740e8 = function(arg0, arg1, arg2) {
         arg0[arg1 >>> 0] = arg2;
+    };
+    imports.wbg.__wbg_set_3f1d0b984ed272ed = function(arg0, arg1, arg2) {
+        arg0[arg1] = arg2;
     };
     imports.wbg.__wbg_stack_0ed75d68575b0f3c = function(arg0, arg1) {
         const ret = arg1.stack;
@@ -220,6 +241,10 @@ function __wbg_get_imports() {
         table.set(offset + 2, true);
         table.set(offset + 3, false);
         ;
+    };
+    imports.wbg.__wbindgen_number_new = function(arg0) {
+        const ret = arg0;
+        return ret;
     };
     imports.wbg.__wbindgen_string_new = function(arg0, arg1) {
         const ret = getStringFromWasm0(arg0, arg1);

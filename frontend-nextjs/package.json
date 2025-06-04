@@ -9,9 +9,14 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
+    "audiobuffer-to-wav": "^1.0.0",
+    "next": "15.3.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "next": "15.3.2"
+    "wav-blob-util": "^1.0.21",
+    "webm-to-wav-converter": "^1.1.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

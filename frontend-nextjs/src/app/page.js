@@ -1,5 +1,32 @@
 "use client";
 import React, { useRef, useState } from "react";
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile } from "@ffmpeg/util";
+
+async function convertWebmToWav(blob) {
+  const ffmpeg = new FFmpeg();
+
+  // Load FFmpeg
+  await ffmpeg.load();
+
+  // Write the input file
+  await ffmpeg.writeFile("input.webm", await fetchFile(blob));
+
+  // Convert webm to wav
+  await ffmpeg.exec([
+    "-i",
+    "input.webm",
+    "-ar",
+    "44100",
+    "-ac",
+    "1",
+    "output.wav",
+  ]);
+
+  // Read the output file
+  const wavData = await ffmpeg.readFile("output.wav");
+  return new Blob([wavData], { type: "audio/wav" });
+}
 
 export default function Home() {
   const [recording, setRecording] = useState(false);
@@ -9,45 +36,39 @@ export default function Home() {
   const audioChunksRef = useRef([]);
 
   async function onAudioReady(blob) {
-    const arrayBuffer = await blob.arrayBuffer();
-    const audioCtx = new AudioContext();
-    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    try {
+      // Convert blob directly to Uint8Array (no signed conversion needed)
+      const bytes = new Uint8Array(await blob.arrayBuffer());
 
-    const float32 = audioBuffer.getChannelData(0); // mono channel
-    const sampleRate = audioBuffer.sampleRate;
+      // Get sample rate from audio file
+      const audioContext = new (window.AudioContext ||
+        window.webkitAudioContext)();
+      const audioBuffer = await audioContext.decodeAudioData(
+        await blob.arrayBuffer()
+      );
+      const sampleRate = audioBuffer.sampleRate;
 
-    // Load wasm + generate hashes
-    const init = (await import("../../public/wasm/fingerprinter_rust.js"))
-      .default;
-    await init(); // initializes wasm
-    const { generate_query_fingerprint_wasm } = await import(
-      "../../public/wasm/fingerprinter_rust.js"
-    );
+      // Initialize WASM
+      const wasmModule = await import(
+        "../../public/wasm/fingerprinter_rust.js"
+      );
+      await wasmModule.default(); // Initialize the WASM module
 
-    const audioBytes = await blobToBytes(blob);
-    const hashes = await generate_query_fingerprint_wasm(
-      audioBytes,
-      sampleRate
-    );
+      // Generate hashes using the unified function
+      const result = await wasmModule.create_hashes_from_wav_wasm(bytes);
 
-    console.log("Hashes:", hashes);
+      // Extract hashes from result
+      const hashes = result.hashes;
+      console.log(`Generated ${hashes.length} hashes`);
+      console.log("Sample hashes:", hashes.slice(0, 5));
 
-    searchByHashes(hashes)
-      .then((results) => {
-        console.log("Search results:", results);
-        // Optionally, update state to display results in your UI
-        // setSearchResults(results);
-      })
-      .catch((err) => {
-        console.error("Error searching by hashes:", err);
-      });
-  }
-
-  async function blobToBytes(blob) {
-    const arrayBuffer = await blob.arrayBuffer();
-    // Convert to Java-style signed bytes
-    const int8Array = new Int8Array(arrayBuffer);
-    return new Uint8Array(int8Array.map((b) => (b < 0 ? b + 256 : b)));
+      // Search with hashes
+      const searchResults = await searchByHashes(hashes);
+      console.log("Search results:", searchResults);
+    } catch (error) {
+      console.error("Audio processing failed:", error);
+      // Handle error in UI
+    }
   }
 
   const startRecording = async () => {
@@ -63,10 +84,12 @@ export default function Home() {
     };
 
     mediaRecorder.onstop = async () => {
-      const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-      setAudioBlob(blob);
-      setAudioUrl(URL.createObjectURL(blob));
-      await onAudioReady(blob);
+      const webmBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+      const wavBlob = await convertWebmToWav(webmBlob);
+
+      setAudioBlob(wavBlob);
+      setAudioUrl(URL.createObjectURL(wavBlob));
+      await onAudioReady(wavBlob);
     };
 
     mediaRecorder.start();

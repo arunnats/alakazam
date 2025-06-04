@@ -1,4 +1,4 @@
-use crate::core::{generate_query_fingerprint, generate_song_fingerprint};
+use crate::core::{create_hashes_from_wav, generate_query_fingerprint, generate_song_fingerprint};
 use console_error_panic_hook;
 use serde_wasm_bindgen::to_value;
 use wasm_bindgen::prelude::*;
@@ -75,4 +75,13 @@ pub fn generate_query_fingerprint_wasm(
 #[wasm_bindgen]
 pub fn test_wasm() -> String {
     "WASM is working!".to_string()
+}
+
+#[wasm_bindgen]
+pub fn create_hashes_from_wav_wasm(wav_bytes: &[u8]) -> Result<JsValue, JsValue> {
+    let result = create_hashes_from_wav(wav_bytes)
+        .map_err(|e| JsValue::from_str(&format!("Error: {}", e)))?;
+
+    serde_wasm_bindgen::to_value(&result)
+        .map_err(|e| JsValue::from_str(&format!("Serialization error: {}", e)))
 }

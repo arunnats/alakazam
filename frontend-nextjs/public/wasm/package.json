@@ -1,0 +1,15 @@
+{
+  "name": "fingerprinter-rust",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "fingerprinter_rust_bg.wasm",
+    "fingerprinter_rust.js",
+    "fingerprinter_rust.d.ts"
+  ],
+  "main": "fingerprinter_rust.js",
+  "types": "fingerprinter_rust.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

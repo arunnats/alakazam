@@ -3,6 +3,7 @@
 export function generate_song_fingerprint_wasm(audio_bytes: Uint8Array, sample_rate: number): any;
 export function generate_query_fingerprint_wasm(audio_bytes: Uint8Array, sample_rate: number): any;
 export function test_wasm(): string;
+export function create_hashes_from_wav_wasm(wav_bytes: Uint8Array): any;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -12,9 +13,11 @@ export interface InitOutput {
   readonly Java_com_alakazam_backend_1spring_fingerprinter_Fingerprinter_generateSongFingerprint: (a: number, b: number, c: number, d: number) => number;
   readonly Java_com_alakazam_backend_1spring_fingerprinter_Fingerprinter_generateQueryFingerprint: (a: number, b: number, c: number, d: number) => number;
   readonly Java_com_alakazam_backend_1spring_fingerprinter_Fingerprinter_testFunc: (a: number, b: number) => number;
+  readonly Java_com_alakazam_backend_1spring_fingerprinter_Fingerprinter_createHashesFromWav: (a: number, b: number, c: number) => number;
   readonly generate_song_fingerprint_wasm: (a: number, b: number, c: number) => [number, number, number];
   readonly generate_query_fingerprint_wasm: (a: number, b: number, c: number) => [number, number, number];
   readonly test_wasm: () => [number, number];
+  readonly create_hashes_from_wav_wasm: (a: number, b: number) => [number, number, number];
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
