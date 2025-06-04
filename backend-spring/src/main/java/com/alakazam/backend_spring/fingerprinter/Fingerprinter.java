@@ -57,7 +57,6 @@ public class Fingerprinter {
     // Native method declarations
     public static native String generateSongFingerprint(byte[] audioData, int sampleRate);
     public static native String generateQueryFingerprint(byte[] audioData, int sampleRate);
-    public static native String testFunc();
     public static native String loadAudioFromWav(String filePath);
     public static native String createHashesFromWav(byte[] wavBytes);
 
@@ -72,15 +71,6 @@ public class Fingerprinter {
             return objectMapper.readValue(jsonResult, AudioData.class);
         } catch (Exception e) {
             throw new RuntimeException("Failed to load audio from WAV file", e);
-        }
-    }
-
-    public String testConnection() {
-        try {
-            String result = testFunc();
-            return result != null ? result : "null returned";
-        } catch (Exception e) {
-            return "Error: " + e.getMessage();
         }
     }
 
@@ -173,15 +163,4 @@ public class Fingerprinter {
         public int sampleCount;
     }    
     
-    // Utility method to test if the library is loaded correctly
-    public boolean isLibraryLoaded() {
-        try {
-            // Test with dummy data
-            byte[] testData = new byte[4];
-            generateSongFingerprint(testData, 44100);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
 }

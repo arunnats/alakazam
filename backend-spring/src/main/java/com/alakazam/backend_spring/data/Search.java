@@ -36,8 +36,6 @@ public class Search {
                 }                
             }
         }
-
-        System.out.println("teastcc\n");
         
         // Calculate confidence scores (same logic as Rust)
         List<MatchResultDetailed> results = new ArrayList<>();
@@ -73,8 +71,6 @@ public class Search {
                 }
             }
         }
-
-        System.out.println("teastdd\n");
         
         // Sort by confidence (highest first)
         results.sort((a, b) -> Float.compare(b.getConfidence(), a.getConfidence()));
